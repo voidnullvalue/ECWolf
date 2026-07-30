@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - agent/true-anaglyph-stereo
+  pull_request:
+    branches:
+      - master
 
 permissions:
   contents: write
@@ -15,6 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: agent/true-anaglyph-stereo
           fetch-depth: 0
 
       - name: Apply renderer changes
@@ -34,7 +38,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add src/c_cvars.cpp src/c_cvars.h src/wl_draw.cpp src/wl_draw.h src/wl_menu.cpp src/wl_parallax.cpp tools/test_anaglyph_geometry.py tools/apply_true_anaglyph.py .github/workflows/apply-true-anaglyph.yml
           git commit -m "Add true depth-dependent anaglyph stereo"
-          git push
+          git push origin HEAD:agent/true-anaglyph-stereo
 
       - name: Configure ECWolf
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
