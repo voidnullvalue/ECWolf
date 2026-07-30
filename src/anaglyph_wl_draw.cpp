@@ -49,6 +49,9 @@ void ThreeDRefresh(void)
 		R_RenderView();
 		AnaglyphCaptureEye(true, frameBuffer, SCREENPITCH, SCREENWIDTH, SCREENHEIGHT);
 
+		// The sprite pass consumes the renderer's tile visibility map, so each
+		// eye must trace its own visibility set instead of inheriting the other.
+		map->ClearVisibility();
 		camera->x = originalX + xOffset;
 		camera->y = originalY + yOffset;
 		R_RenderView();
