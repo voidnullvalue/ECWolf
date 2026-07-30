@@ -127,7 +127,9 @@ void DrawParallax(byte *vbuf, unsigned vbufPitch)
 
 	// For a speed of 1 cycle roughly every 30 seconds (roughly in line with ZDoom)
 	const angle_t scroll = xs_ToInt(scrollSpeed*gamestate.TimeCount*(1<<27)/TICRATE);
-	const int midangle = (players[ConsolePlayer].camera->angle + scroll)>>ANGLETOFINESHIFT;
+	// Use the active eye angle. At finite convergence, the sky is at infinity
+	// and therefore retains the expected uncrossed disparity.
+	const int midangle = (viewangle + scroll)>>ANGLETOFINESHIFT;
 	// Position of world horizon line
 	const int horizonheight = (viewheight >> 1) - viewshift;
 	// We want to map the sky onto the upper and lower 100 pixels of the 320x200
