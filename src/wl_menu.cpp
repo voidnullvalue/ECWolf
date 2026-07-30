@@ -525,6 +525,12 @@ void CreateMenus()
 #if SDL_VERSION_ATLEAST(2,0,0)
 	displayMenu.addItem(new BooleanMenuItem(language["STR_VSYNC"], vid_vsync, ToggleVsync));
 #endif
+	displayMenu.addItem(new BooleanMenuItem("Anaglyph 3D", r_anaglyph));
+	displayMenu.addItem(new BooleanMenuItem("Swap anaglyph eyes", r_anaglyph_swapeyes));
+	displayMenu.addItem(new LabelMenuItem("3D eye separation"));
+	displayMenu.addItem(new SliderMenuItem(r_anaglyph_separation, 110, 32, "Low", "High"));
+	displayMenu.addItem(new LabelMenuItem("3D convergence distance"));
+	displayMenu.addItem(new SliderMenuItem(r_anaglyph_convergence, 110, 64, "Near", "Far"));
 	displayMenu.addItem(new MultipleChoiceMenuItem(SetAspectRatio, aspectOptions, 8, vid_aspect));
 	displayMenu.addItem(new MenuSwitcherMenuItem(language["STR_SELECTRES"], resolutionMenu, EnterResolutionSelection));
 	displayMenu.addItem(new LabelMenuItem(language["STR_SCREENSIZE"]));

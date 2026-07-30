@@ -11,6 +11,7 @@
 #include "r_sprites.h"
 #include "r_data/colormaps.h"
 #include "v_video.h"
+#include "v_palette.h"
 #include "wl_cloudsky.h"
 #include "wl_atmos.h"
 #include "wl_shade.h"
@@ -67,6 +68,67 @@ const RatioInformation AspectCorrection[] =
 
 /*static*/ byte *vbuf = NULL;
 unsigned vbufPitch = 0;
+
+static fixed anaglyphEyeOffset = 0;
+static angle_t anaglyphEyeYaw = 0;
+static TUniquePtr<byte[]> anaglyphLeftEye;
+static unsigned int anaglyphLeftEyeSize = 0;
+static byte anaglyphColorMap[256][256];
+static uint32_t anaglyphPaletteHash = 0;
+static bool anaglyphColorMapValid = false;
+
+static uint32_t GetAnaglyphPaletteHash()
+{
+	uint32_t hash = 2166136261u;
+	for(unsigned int i = 0;i < 256;++i)
+	{
+		hash ^= GPalette.BaseColors[i].d;
+		hash *= 16777619u;
+	}
+	return hash;
+}
+
+static void BuildAnaglyphColorMap()
+{
+	const uint32_t *palette = reinterpret_cast<const uint32_t *>(GPalette.BaseColors);
+	for(unsigned int redEye = 0;redEye < 256;++redEye)
+	{
+		for(unsigned int cyanEye = 0;cyanEye < 256;++cyanEye)
+		{
+			const PalEntry &red = GPalette.BaseColors[redEye];
+			const PalEntry &cyan = GPalette.BaseColors[cyanEye];
+			anaglyphColorMap[redEye][cyanEye] = BestColor(palette, red.r, cyan.g, cyan.b, 0, 256);
+		}
+	}
+	anaglyphPaletteHash = GetAnaglyphPaletteHash();
+	anaglyphColorMapValid = true;
+}
+
+static void ComposeAnaglyph(byte *target, unsigned int targetPitch, const byte *leftEye)
+{
+	const uint32_t paletteHash = GetAnaglyphPaletteHash();
+	if(!anaglyphColorMapValid || paletteHash != anaglyphPaletteHash)
+		BuildAnaglyphColorMap();
+
+	for(int y = 0;y < viewheight;++y)
+	{
+		byte *rightRow = target + y*targetPitch;
+		const byte *leftRow = leftEye + y*viewwidth;
+		for(int x = 0;x < viewwidth;++x)
+		{
+			const byte left = leftRow[x];
+			const byte right = rightRow[x];
+			rightRow[x] = r_anaglyph_swapeyes ? anaglyphColorMap[right][left] : anaglyphColorMap[left][right];
+		}
+	}
+}
+
+static angle_t CalculateAnaglyphToeAngle(fixed halfEyeSeparation, fixed convergenceDistance)
+{
+	const double radians = atan2(static_cast<double>(halfEyeSeparation),
+		static_cast<double>(MAX<fixed>(convergenceDistance, 1)));
+	return static_cast<angle_t>(radians * static_cast<double>(ANGLE_180) / PI);
+}
 
 int32_t	lasttimecount;
 int32_t	frameon;
@@ -525,14 +587,13 @@ void HitHorizWall (void)
 
 unsigned int CalcRotate (AActor *ob)
 {
-	angle_t angle, viewangle;
+	angle_t angle;
 
-	// this isn't exactly correct, as it should vary by a trig value,
-	// but it is close enough with only eight rotations
+	// Use the active eye orientation so rotated sprites agree with the wall and
+	// billboard projection during converged stereo rendering.
+	const angle_t spriteViewAngle = viewangle + (centerx - ob->viewx)/8;
 
-	viewangle = players[ConsolePlayer].camera->angle + (centerx - ob->viewx)/8;
-
-	angle = viewangle - ob->angle;
+	angle = spriteViewAngle - ob->angle;
 
 	angle+= ANGLE_180 + ANGLE_45/2;
 
@@ -1145,18 +1206,29 @@ void WallRefresh (void)
 
 void CalcViewVariables()
 {
-	viewangle = players[ConsolePlayer].camera->angle;
+	const angle_t baseViewAngle = players[ConsolePlayer].camera->angle;
+	const fixed baseViewSin = finesine[baseViewAngle>>ANGLETOFINESHIFT];
+	const fixed baseViewCos = finecosine[baseViewAngle>>ANGLETOFINESHIFT];
+
+	// Translate each eye along the head's right axis, then rotate that eye
+	// toward the shared convergence point. This is actual binocular geometry:
+	// near, convergence-plane, and far geometry produce different disparities.
+	viewangle = baseViewAngle + anaglyphEyeYaw;
 	midangle = viewangle>>ANGLETOFINESHIFT;
 	viewsin = finesine[viewangle>>ANGLETOFINESHIFT];
 	viewcos = finecosine[viewangle>>ANGLETOFINESHIFT];
-	viewx = players[ConsolePlayer].camera->x - FixedMul(focallength,viewcos);
-	viewy = players[ConsolePlayer].camera->y + FixedMul(focallength,viewsin);
+
+	const fixed cameraX = players[ConsolePlayer].camera->x + FixedMul(anaglyphEyeOffset, baseViewSin);
+	const fixed cameraY = players[ConsolePlayer].camera->y + FixedMul(anaglyphEyeOffset, baseViewCos);
+
+	viewx = cameraX - FixedMul(focallength,viewcos);
+	viewy = cameraY + FixedMul(focallength,viewsin);
 
 	focaltx = (short)(viewx>>TILESHIFT);
 	focalty = (short)(viewy>>TILESHIFT);
 
-	viewtx = (short)(players[ConsolePlayer].camera->x >> TILESHIFT);
-	viewty = (short)(players[ConsolePlayer].camera->y >> TILESHIFT);
+	viewtx = (short)(cameraX >> TILESHIFT);
+	viewty = (short)(cameraY >> TILESHIFT);
 
 	if(players[ConsolePlayer].camera->player)
 		r_extralight = players[ConsolePlayer].camera->player->extralight << 3;
@@ -1189,7 +1261,7 @@ void ThreeDStartFadeIn()
 
 //==========================================================================
 
-void R_RenderView()
+static void R_RenderWorld()
 {
 	CalcViewVariables();
 
@@ -1223,7 +1295,10 @@ void R_RenderView()
 	if(GetFeatureFlags() & FF_SNOW)
 		DrawSnow(vbuf, vbufPitch);
 #endif
+}
 
+static void R_DrawViewOverlay()
+{
 	DrawPlayerWeapon ();    // draw player's hands
 
 	if((control[ConsolePlayer].buttonstate[bt_showstatusbar] || control[ConsolePlayer].buttonheld[bt_showstatusbar]) && viewsize == 21)
@@ -1235,6 +1310,12 @@ void R_RenderView()
 
 	// Always mark the current spot as visible in the automap
 	map->GetSpot(players[ConsolePlayer].mo->tilex, players[ConsolePlayer].mo->tiley, 0)->amFlags |= AM_Visible;
+}
+
+void R_RenderView()
+{
+	R_RenderWorld();
+	R_DrawViewOverlay();
 }
 
 /*
@@ -1264,7 +1345,50 @@ void    ThreeDRefresh (void)
 	vbuf += screenofs;
 	vbufPitch = SCREENPITCH;
 
-	R_RenderView();
+	if(r_anaglyph && r_anaglyph_separation > 0)
+	{
+		byte * const screenVbuf = vbuf;
+		const unsigned int screenPitch = vbufPitch;
+		const unsigned int requiredSize = viewwidth*viewheight;
+		if(requiredSize != anaglyphLeftEyeSize)
+		{
+			anaglyphLeftEye = new byte[requiredSize];
+			anaglyphLeftEyeSize = requiredSize;
+		}
+
+		// Separation is half-IPD in 1/256 tile units. Convergence is in
+		// quarter-tile units, allowing a useful range without floating CVARs.
+		const fixed halfEyeSeparation = r_anaglyph_separation*(TILEGLOBAL/256);
+		const fixed convergenceDistance = MAX(r_anaglyph_convergence, 1)*(TILEGLOBAL/4);
+		const angle_t toeAngle = CalculateAnaglyphToeAngle(halfEyeSeparation, convergenceDistance);
+
+		vbuf = anaglyphLeftEye.Get();
+		vbufPitch = viewwidth;
+		anaglyphEyeOffset = -halfEyeSeparation;
+		anaglyphEyeYaw = ANGLE_NEG(toeAngle);
+		map->ClearVisibility();
+		R_RenderWorld();
+
+		vbuf = screenVbuf;
+		vbufPitch = screenPitch;
+		anaglyphEyeOffset = halfEyeSeparation;
+		anaglyphEyeYaw = toeAngle;
+		map->ClearVisibility();
+		R_RenderWorld();
+
+		ComposeAnaglyph(screenVbuf, screenPitch, anaglyphLeftEye.Get());
+
+		anaglyphEyeOffset = 0;
+		anaglyphEyeYaw = 0;
+		CalcViewVariables();
+		R_DrawViewOverlay();
+	}
+	else
+	{
+		anaglyphEyeOffset = 0;
+		anaglyphEyeYaw = 0;
+		R_RenderView();
+	}
 
 	VL_UnlockSurface();
 	vbuf = NULL;

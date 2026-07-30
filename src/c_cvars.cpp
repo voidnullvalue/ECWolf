@@ -50,6 +50,10 @@ Aspect r_ratio = ASPECT_4_3, vid_aspect = ASPECT_NONE;
 bool forcegrabmouse = false;
 bool vid_fullscreen = false;
 bool vid_vsync = false;
+bool r_anaglyph = false;
+bool r_anaglyph_swapeyes = false;
+int r_anaglyph_separation = 8;
+int r_anaglyph_convergence = 16;
 bool quitonescape = false;
 fixed movebob = FRACUNIT;
 
@@ -191,6 +195,10 @@ void ReadConfig(void)
 	config.CreateSetting("Vid_FullScreen", false);
 	config.CreateSetting("Vid_Aspect", ASPECT_NONE);
 	config.CreateSetting("Vid_Vsync", false);
+	config.CreateSetting("R_Anaglyph", false);
+	config.CreateSetting("R_AnaglyphSwapEyes", false);
+	config.CreateSetting("R_AnaglyphSeparation", 8);
+	config.CreateSetting("R_AnaglyphConvergence", 16);
 	config.CreateSetting("FullScreenWidth", fullScreenWidth);
 	config.CreateSetting("FullScreenHeight", fullScreenHeight);
 	config.CreateSetting("WindowedScreenWidth", windowedScreenWidth);
@@ -257,6 +265,10 @@ void ReadConfig(void)
 	vid_fullscreen = config.GetSetting("Vid_FullScreen")->GetInteger() != 0;
 	vid_aspect = static_cast<Aspect>(config.GetSetting("Vid_Aspect")->GetInteger());
 	vid_vsync = config.GetSetting("Vid_Vsync")->GetInteger() != 0;
+	r_anaglyph = config.GetSetting("R_Anaglyph")->GetInteger() != 0;
+	r_anaglyph_swapeyes = config.GetSetting("R_AnaglyphSwapEyes")->GetInteger() != 0;
+	r_anaglyph_separation = config.GetSetting("R_AnaglyphSeparation")->GetInteger();
+	r_anaglyph_convergence = config.GetSetting("R_AnaglyphConvergence")->GetInteger();
 	fullScreenWidth = config.GetSetting("FullScreenWidth")->GetInteger();
 	fullScreenHeight = config.GetSetting("FullScreenHeight")->GetInteger();
 	windowedScreenWidth = config.GetSetting("WindowedScreenWidth")->GetInteger();
@@ -325,6 +337,11 @@ void ReadConfig(void)
 
 	if(viewsize<4) viewsize=4;
 	else if(viewsize>21) viewsize=21;
+
+	if(r_anaglyph_separation < 0) r_anaglyph_separation = 0;
+	else if(r_anaglyph_separation > 32) r_anaglyph_separation = 32;
+	if(r_anaglyph_convergence < 1) r_anaglyph_convergence = 1;
+	else if(r_anaglyph_convergence > 64) r_anaglyph_convergence = 64;
 
 	// Carry over the unified screenWidth/screenHeight from previous versions
 	// Overwrite the full*/windowed* variables, because they're (most likely) defaulted anyways
@@ -411,6 +428,10 @@ void WriteConfig(void)
 	config.GetSetting("Vid_FullScreen")->SetValue(vid_fullscreen);
 	config.GetSetting("Vid_Aspect")->SetValue(vid_aspect);
 	config.GetSetting("Vid_Vsync")->SetValue(vid_vsync);
+	config.GetSetting("R_Anaglyph")->SetValue(r_anaglyph);
+	config.GetSetting("R_AnaglyphSwapEyes")->SetValue(r_anaglyph_swapeyes);
+	config.GetSetting("R_AnaglyphSeparation")->SetValue(r_anaglyph_separation);
+	config.GetSetting("R_AnaglyphConvergence")->SetValue(r_anaglyph_convergence);
 	config.GetSetting("FullScreenWidth")->SetValue(fullScreenWidth);
 	config.GetSetting("FullScreenHeight")->SetValue(fullScreenHeight);
 	config.GetSetting("WindowedScreenWidth")->SetValue(windowedScreenWidth);
