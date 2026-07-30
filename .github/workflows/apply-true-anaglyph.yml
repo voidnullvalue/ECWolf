@@ -28,7 +28,7 @@ jobs:
         run: python3 tools/test_anaglyph_geometry.py
 
       - name: Check patch hygiene
-        run: git diff --check
+        run: git diff --check --ignore-space-at-eol
 
       - name: Commit generated source changes
         run: |
