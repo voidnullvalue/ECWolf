@@ -83,6 +83,10 @@ initial_sources(
 	thingdef/thingdef_type.cpp
 	actor.cpp
 	am_map.cpp
+	anaglyph.cpp
+	anaglyph_sdlvideo.cpp
+	anaglyph_wl_draw.cpp
+	anaglyph_wl_menu.cpp
 	colormatcher.cpp
 	config.cpp
 	c_cvars.cpp
@@ -117,7 +121,6 @@ initial_sources(
 	p_switch.cpp
 	r_sprites.cpp
 	scanner.cpp
-	sdlvideo.cpp
 	sndinfo.cpp
 	sndseq.cpp
 	thinker.cpp
@@ -135,14 +138,12 @@ initial_sources(
 	wl_cloudsky.cpp
 	wl_debug.cpp
 	wl_dir3dspr.cpp
-	wl_draw.cpp
 	wl_floorceiling.cpp
 	wl_game.cpp
 	wl_inter.cpp
 	wl_iwad.cpp
 	wl_loadsave.cpp
 	wl_main.cpp
-	wl_menu.cpp
 	wl_net.cpp
 	wl_parallax.cpp
 	wl_play.cpp
