@@ -18,7 +18,10 @@ void ThreeDRefresh(void)
 
 	BYTE *frameBuffer = VL_LockSurface();
 	if(frameBuffer == NULL)
+	{
+		VL_UnlockSurface();
 		return;
+	}
 
 	vbuf = frameBuffer + screenofs;
 	vbufPitch = SCREENPITCH;
