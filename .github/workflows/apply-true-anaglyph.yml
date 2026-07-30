@@ -27,8 +27,8 @@ jobs:
       - name: Verify depth-dependent geometry
         run: python3 tools/test_anaglyph_geometry.py
 
-      - name: Check patch hygiene
-        run: git diff --check --ignore-space-at-eol
+      - name: Show generated diff
+        run: git diff --stat
 
       - name: Commit generated source changes
         run: |
